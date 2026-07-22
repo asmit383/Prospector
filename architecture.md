@@ -41,8 +41,8 @@ Scans job boards and company sites for remote ML/automation roles, finds the dec
                            │
                 ┌──────────▼──────────┐
                 │   [5] LLM FIT-SCORE  │   survivors only
-                │   score 1-10         │   drop < 6
-                │   + reasoning        │
+                │   → {score, tier,    │   tier: strong|maybe|no
+                │      reason}         │   gate on tier, not number
                 └──────────┬──────────┘
                            │
                 ┌──────────▼──────────────────────────────────┐
@@ -194,10 +194,15 @@ class DecisionMaker:
     company_url: str
 
 @dataclass
+class FitResult:
+    score: int               # 1-10 (for ranking, not gating)
+    tier: str                # "strong" | "maybe" | "no"
+    reason: str
+
+@dataclass
 class Prospect:              # a Job + its DecisionMaker + drafts
     job: Job
-    fit_score: int
-    fit_reason: str
+    fit: FitResult
     contact: DecisionMaker | None
     email_draft: str
     linkedin_draft: str
@@ -207,7 +212,7 @@ class Prospect:              # a Job + its DecisionMaker + drafts
 
 ```sql
 CREATE TABLE jobs (
-    id TEXT PRIMARY KEY,     -- hash(company + title + source)
+    id TEXT PRIMARY KEY,     -- hash(company + normalized_title), source-agnostic
     title TEXT,
     company TEXT,
     company_url TEXT,
@@ -221,6 +226,7 @@ CREATE TABLE jobs (
     posted_at TEXT,
     discovered_at TEXT,
     fit_score INTEGER,
+    fit_tier TEXT,            -- "strong", "maybe", "no"
     fit_reason TEXT
 );
 

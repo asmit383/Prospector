@@ -13,9 +13,11 @@ build/
 venv/
 .venv/
 
-# Secrets
+# Secrets & personal config
 .env
 *.key
+config/*.yaml
+!config/*.example.yaml
 
 # SQLite
 *.db
