@@ -1,0 +1,24 @@
+# Your profile — used by the LLM for fit-scoring and drafting outreach.
+# Copy this to my_profile.yaml and fill in your real details.
+
+name: Your Name
+
+summary: >
+  One-paragraph pitch of who you are and what you do.
+
+skills:
+  - skill one
+  - skill two
+
+experience:
+  - role: Consultant
+    company: Company Name
+    dates: Jan 2026 – Present
+    what: What you actually built / delivered.
+
+target_roles:
+  - remote automation engineer
+  - remote ML infrastructure engineer
+
+goal: >
+  What you're looking for and why (informs tone of outreach).

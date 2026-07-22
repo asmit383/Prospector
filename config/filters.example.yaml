@@ -1,0 +1,28 @@
+# Cheap prefilter rules — applied before any LLM call.
+# Copy this to filters.yaml and tune.
+
+remote_only: true
+
+min_salary: 30000  # drop jobs with a listed max below this; keep jobs with no salary info
+
+# A job must match at least one of these (case-insensitive substring in title or tags).
+include_keywords:
+  - automation
+  - scraping
+  - scraper
+  - crawl
+  - ml
+  - machine learning
+  - llm
+  - inference
+  - backend
+  - python
+
+# Drop the job if the title contains any of these.
+exclude_title_keywords:
+  - senior director
+  - vp
+  - vice president
+  - head of
+  - manager
+  - lead
