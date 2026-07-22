@@ -19,7 +19,7 @@ venv/
 config/*.yaml
 !config/*.example.yaml
 
-# SQLite
+# Database (local dev/testing)
 *.db
 *.sqlite
 *.sqlite3

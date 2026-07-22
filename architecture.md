@@ -35,7 +35,7 @@ Scans job boards and company sites for remote ML/automation roles, finds the dec
                 └──────────┬──────────┘
                            │
                 ┌──────────▼──────────┐
-                │   [4] DEDUPE         │   SQLite seen_jobs
+                │   [4] DEDUPE         │   Supabase (Postgres) seen_jobs
                 │   skip if seen       │
                 └──────────┬──────────┘
                            │
@@ -76,7 +76,7 @@ Scans job boards and company sites for remote ML/automation roles, finds the dec
                 └──────────┬──────────┘
                            │
                 ┌──────────▼──────────┐
-                │   [9] PERSIST        │   SQLite
+                │   [9] PERSIST        │   Supabase (Postgres)
                 │   jobs · contacts    │
                 │   outreach_log       │
                 └─────────────────────┘
@@ -117,7 +117,7 @@ prospector/
 │   ├── __init__.py
 │   ├── normalizer.py        # raw source data → Job schema
 │   ├── prefilter.py         # fast keyword/salary/remote filtering
-│   ├── deduper.py           # SQLite-backed seen-job check
+│   ├── deduper.py           # Supabase (Postgres)-backed seen-job check
 │   ├── scorer.py            # LLM fit-scoring
 │   └── drafter.py           # LLM outreach drafting
 │
@@ -133,7 +133,7 @@ prospector/
 │
 ├── db/
 │   ├── __init__.py
-│   └── store.py             # SQLite schema + queries (jobs, contacts, outreach)
+│   └── store.py             # Supabase client — jobs, contacts, outreach queries
 │
 ├── models/                  # data schemas
 │   ├── __init__.py
@@ -152,7 +152,7 @@ prospector/
 | HTTP client        | httpx                             | async, modern, good for APIs             |
 | Stealth browser    | Playwright + stealth patches      | core skill demo, handles JS-heavy sites  |
 | Anti-detection     | custom fingerprinting, TLS config | portfolio flex — shows depth             |
-| Database           | SQLite                            | zero-infra, portable, enough for v1-v2   |
+| Database           | Supabase (Postgres)             | cloud-hosted, accessible from any machine, free tier |
 | LLM                | OpenAI-compatible API             | fit-scoring + drafting, provider-agnostic |
 | Notifications      | Discord webhook                   | free, instant, rich embeds               |
 | Deployment         | VPS + cron                        | simple, reliable daily runs              |
@@ -208,48 +208,48 @@ class Prospect:              # a Job + its DecisionMaker + drafts
     linkedin_draft: str
 ```
 
-## SQLite Schema (core tables)
+## Supabase (Postgres) Schema (core tables)
 
 ```sql
 CREATE TABLE jobs (
     id TEXT PRIMARY KEY,     -- hash(company + normalized_title), source-agnostic
-    title TEXT,
-    company TEXT,
+    title TEXT NOT NULL,
+    company TEXT NOT NULL,
     company_url TEXT,
     description TEXT,
-    salary_min INTEGER,
-    salary_max INTEGER,
+    salary_min INT,
+    salary_max INT,
     location TEXT,
-    tags TEXT,                -- JSON array
-    source TEXT,
+    tags JSONB DEFAULT '[]',
+    source TEXT NOT NULL,
     source_url TEXT,
-    posted_at TEXT,
-    discovered_at TEXT,
-    fit_score INTEGER,
+    posted_at TIMESTAMPTZ,
+    discovered_at TIMESTAMPTZ DEFAULT NOW(),
+    fit_score INT,
     fit_tier TEXT,            -- "strong", "maybe", "no"
     fit_reason TEXT
 );
 
 CREATE TABLE contacts (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    name TEXT,
+    id SERIAL PRIMARY KEY,
+    name TEXT NOT NULL,
     title TEXT,
     email TEXT,
-    email_verified INTEGER DEFAULT 0,
+    email_verified BOOLEAN DEFAULT FALSE,
     linkedin_url TEXT,
-    company TEXT,
+    company TEXT NOT NULL,
     company_url TEXT,
-    discovered_at TEXT
+    discovered_at TIMESTAMPTZ DEFAULT NOW()
 );
 
 CREATE TABLE outreach (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    id SERIAL PRIMARY KEY,
     job_id TEXT REFERENCES jobs(id),
-    contact_id INTEGER REFERENCES contacts(id),
-    channel TEXT,            -- "email" or "linkedin"
+    contact_id INT REFERENCES contacts(id),
+    channel TEXT NOT NULL,    -- "email" or "linkedin"
     draft TEXT,
     status TEXT DEFAULT 'drafted',  -- drafted / sent / replied / ignored
-    created_at TEXT,
-    sent_at TEXT
+    created_at TIMESTAMPTZ DEFAULT NOW(),
+    sent_at TIMESTAMPTZ
 );
 ```
