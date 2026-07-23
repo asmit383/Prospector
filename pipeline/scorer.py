@@ -1,8 +1,7 @@
-import yaml
-
 import config
 from models.job import Job, FitResult
 from pipeline.llm_util import client as _client, extract_json
+from pipeline.profile import get_profile_text
 
 # Force structured output. We gate on `tier`, not the raw number — the score
 # is only for ranking within a tier.
@@ -17,13 +16,9 @@ tier guidance:
 - "maybe": partial fit or adjacent; could be worth it.
 - "no": wrong domain, wrong seniority, or unrelated."""
 
-# Serialize the profile once — it's the same for every job this run.
-_PROFILE_STR = yaml.safe_dump(config.PROFILE, sort_keys=False)
-
-
 def score(job: Job) -> FitResult:
     user_msg = (
-        f"CANDIDATE PROFILE:\n{_PROFILE_STR}\n\n"
+        f"CANDIDATE PROFILE:\n{get_profile_text()}\n\n"
         f"JOB POSTING:\n"
         f"Title: {job.title}\n"
         f"Company: {job.company}\n"

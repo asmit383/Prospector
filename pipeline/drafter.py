@@ -1,8 +1,7 @@
-import yaml
-
 import config
 from models.job import Job, FitResult, Prospect
 from pipeline.llm_util import client as _client, extract_json
+from pipeline.profile import get_profile_text
 
 # Two drafts per prospect: a professional email and a shorter, casual LinkedIn
 # message. Both personalized to the company + role, grounded in the profile.
@@ -16,12 +15,9 @@ this finds you well." Keep it tight and technical.
 Respond ONLY with JSON:
 {"email": "<subject line + body>", "linkedin": "<1-3 sentence connection message>"}"""
 
-_PROFILE_STR = yaml.safe_dump(config.PROFILE, sort_keys=False)
-
-
 def draft(job: Job, fit: FitResult) -> tuple[str, str]:
     user_msg = (
-        f"CANDIDATE PROFILE:\n{_PROFILE_STR}\n\n"
+        f"CANDIDATE PROFILE:\n{get_profile_text()}\n\n"
         f"JOB:\n"
         f"Title: {job.title}\n"
         f"Company: {job.company}\n"

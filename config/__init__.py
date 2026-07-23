@@ -27,6 +27,11 @@ LLM_BASE_URL = os.environ.get("LLM_BASE_URL", "https://api.openai.com/v1")
 LLM_MODEL = os.environ.get("LLM_MODEL", "gpt-4o-mini")
 DISCORD_WEBHOOK_URL = os.environ["DISCORD_WEBHOOK_URL"]
 
+# Optional — enrich the profile from live GitHub. Username falls back to the
+# `github:` URL in my_profile.yaml. Token is optional (60→5000 req/hr).
+GITHUB_USERNAME = os.environ.get("GITHUB_USERNAME", "")
+GITHUB_TOKEN = os.environ.get("GITHUB_TOKEN", "")
+
 # Personal config from YAML
 PROFILE = _load_yaml("my_profile.yaml")
 FILTERS = _load_yaml("filters.yaml")

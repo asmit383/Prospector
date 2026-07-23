@@ -3,6 +3,9 @@
 
 remote_only: true
 
+# Drop jobs older than this many days (uses the post date when known; unknown = kept).
+max_age_days: 30
+
 min_salary: 30000  # drop jobs with a listed max below this; keep jobs with no salary info
 
 # A job must match at least one of these (case-insensitive substring in title or tags).
