@@ -3,10 +3,18 @@ from datetime import datetime, timezone
 import config
 from models.job import Job
 
+# Boards that only list remote jobs — their location fields are often junk
+# ("Jobs Cabin", "Anywhere in the World"), so skip the remote check for them.
+_REMOTE_SOURCES = {"remoteok", "remotive", "wwr"}
+_REMOTE_HINTS = ("remote", "anywhere", "worldwide", "global", "distributed")
+
 
 def _text(job: Job) -> str:
-    """Lowercased haystack of the fields we keyword-match against."""
-    return f"{job.title} {' '.join(job.tags)}".lower()
+    """Keyword-match against the title only. Tags are unreliable — RemoteOK spams
+    tech tags onto non-tech listings, Remotive adds off-target ones — while the
+    role title is the honest signal (real tech jobs put the stack in the title).
+    (HN titles are the full 'Company | Role | stack' header, so they're rich.)"""
+    return job.title.lower()
 
 
 def _too_old(job: Job) -> bool:
@@ -28,12 +36,11 @@ def passes(job: Job) -> bool:
     if _too_old(job):
         return False
 
-    # 1. Remote check. RemoteOK is all-remote, but other sources aren't —
-    #    drop anything that names a non-remote location.
-    if f.get("remote_only") and "remote" not in job.location.lower() \
-            and job.location.lower() not in ("", "anywhere", "worldwide"):
-        # location isn't clearly remote — only keep if the source is remote-only
-        if job.source not in ("remoteok",):
+    # 1. Remote check. Boards that are remote-only by definition always pass;
+    #    other sources (HN, scraped) must name a remote-ish location.
+    if f.get("remote_only") and job.source not in _REMOTE_SOURCES:
+        loc = job.location.lower()
+        if loc and not any(k in loc for k in _REMOTE_HINTS):
             return False
 
     # 2. Title exclusions (too senior / wrong function).
