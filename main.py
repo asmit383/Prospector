@@ -8,6 +8,7 @@ from sources.hn_algolia import HackerNews
 from sources.remoteok import RemoteOK
 from sources.remotive import Remotive
 from sources.wwr import WeWorkRemotely
+from sources.yc import YCombinator
 from pipeline import prefilter, deduper, scorer, drafter
 from notify import discord
 from db import store
@@ -15,7 +16,7 @@ from db import store
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
 log = logging.getLogger("prospector")
 
-SOURCES = [RemoteOK(), HackerNews(), Remotive(), WeWorkRemotely()]
+SOURCES = [RemoteOK(), HackerNews(), Remotive(), WeWorkRemotely(), YCombinator()]
 
 
 def gather_jobs():

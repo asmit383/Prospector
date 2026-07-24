@@ -17,6 +17,14 @@ def _truncate(text: str, limit: int = 1000) -> str:
     return text if len(text) <= limit else text[: limit - 1] + "…"
 
 
+def _webhook_for(source: str) -> str:
+    """YC startup leads go to their own channel (cold-outreach flow); everything
+    else to the main channel. Falls back to main if the YC hook isn't set."""
+    if source == "yc" and config.DISCORD_WEBHOOK_YC:
+        return config.DISCORD_WEBHOOK_YC
+    return config.DISCORD_WEBHOOK_URL
+
+
 def send(prospect: Prospect) -> None:
     job, fit = prospect.job, prospect.fit
     embed = {
@@ -31,5 +39,5 @@ def send(prospect: Prospect) -> None:
             {"name": "📍 Source", "value": job.source, "inline": True},
         ],
     }
-    resp = httpx.post(config.DISCORD_WEBHOOK_URL, json={"embeds": [embed]}, timeout=15)
+    resp = httpx.post(_webhook_for(job.source), json={"embeds": [embed]}, timeout=15)
     resp.raise_for_status()

@@ -8,6 +8,10 @@ from models.job import Job
 _REMOTE_SOURCES = {"remoteok", "remotive", "wwr"}
 _REMOTE_HINTS = ("remote", "anywhere", "worldwide", "global", "distributed")
 
+# Sources already filtered to the candidate's lanes by their own taxonomy
+# (YC categorizes companies) — skip the include-keyword gate for them.
+_CATEGORY_FILTERED = {"yc"}
+
 
 def _text(job: Job) -> str:
     """Keyword-match against the title only. Tags are unreliable — RemoteOK spams
@@ -53,9 +57,11 @@ def passes(job: Job) -> bool:
     if floor and job.salary_max is not None and job.salary_max < floor:
         return False
 
-    # 4. Must match at least one include keyword in title or tags.
-    if not any(kw in hay for kw in f.get("include_keywords", [])):
-        return False
+    # 4. Must match at least one include keyword — unless the source already
+    #    filtered to the candidate's lanes by its own taxonomy (e.g. YC).
+    if job.source not in _CATEGORY_FILTERED:
+        if not any(kw in hay for kw in f.get("include_keywords", [])):
+            return False
 
     return True
 
