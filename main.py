@@ -10,6 +10,7 @@ from sources.remotive import Remotive
 from sources.wwr import WeWorkRemotely
 from sources.yc import YCombinator
 from pipeline import prefilter, deduper, scorer, drafter
+from enrichment import finder
 from notify import discord
 from db import store
 
@@ -46,7 +47,11 @@ def main():
     scored = scorer.run(jobs)
     log.info("%d after fit-score (strong/maybe)", len(scored))
 
-    prospects = drafter.run(scored)
+    enriched = finder.run(scored)
+    found = sum(1 for _, _, dm in enriched if dm)
+    log.info("%d/%d decision-makers found", found, len(enriched))
+
+    prospects = drafter.run(enriched)
     log.info("%d prospects drafted", len(prospects))
 
     for p in prospects:

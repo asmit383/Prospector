@@ -25,18 +25,29 @@ def _webhook_for(source: str) -> str:
     return config.DISCORD_WEBHOOK_URL
 
 
+def _contact_line(prospect: Prospect) -> str:
+    c = prospect.contact
+    if not c:
+        return "⚠️ no verified contact — use the source/apply link"
+    title = f" — {c.title}" if c.title else ""
+    email = f"\n📧 {c.email}  `[{c.email_confidence}]`" if c.email else ""
+    return f"👤 **{c.name}**{title}  ·  _{c.source}_{email}"
+
+
 def send(prospect: Prospect) -> None:
     job, fit = prospect.job, prospect.fit
     embed = {
         "title": _truncate(f"🎯 {job.title} @ {job.company}", 256),
         "url": job.source_url or job.company_url,
         "color": _TIER_COLOR.get(fit.tier, 0x95A5A6),
-        "description": _truncate(f"**Fit:** {fit.score}/10 ({fit.tier}) — {fit.reason}"),
+        "description": _truncate(
+            f"**Fit:** {fit.score}/10 ({fit.tier}) — {fit.reason}\n\n{_contact_line(prospect)}"
+        ),
         "fields": [
             {"name": "📧 Email draft", "value": _truncate(prospect.email_draft)},
             {"name": "💬 LinkedIn draft", "value": _truncate(prospect.linkedin_draft)},
             {"name": "🔗 Source", "value": job.source_url or "n/a", "inline": True},
-            {"name": "📍 Source", "value": job.source, "inline": True},
+            {"name": "📍 Via", "value": job.source, "inline": True},
         ],
     }
     resp = httpx.post(_webhook_for(job.source), json={"embeds": [embed]}, timeout=15)

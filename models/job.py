@@ -1,6 +1,8 @@
 from dataclasses import dataclass, field
 from datetime import datetime
 
+from models.contact import DecisionMaker
+
 
 @dataclass
 class Job:
@@ -30,3 +32,4 @@ class Prospect:
     fit: FitResult
     email_draft: str
     linkedin_draft: str
+    contact: DecisionMaker | None = None
