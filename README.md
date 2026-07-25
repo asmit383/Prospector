@@ -27,13 +27,16 @@ It's two things at once: a tool I actually use to run my own job hunt, and a sma
  [5] LLM FIT-SCORE ── {score, tier, reason}, gate on tier       (survivors only)
     │
     ▼
- [6] LLM DRAFT ── personalized email + LinkedIn message
+ [6] FIND DECISION-MAKER ── founder/CTO + email, grounded + confidence-flagged
     │
     ▼
- [7] NOTIFY ── Discord embeds (job leads + startup leads, separate channels)
+ [7] LLM DRAFT ── personalized email + LinkedIn, addressed to the contact
     │
     ▼
- [8] PERSIST ── Supabase (jobs · contacts · outreach)
+ [8] NOTIFY ── Discord embeds (job leads + startup leads, separate channels)
+    │
+    ▼
+ [9] PERSIST ── Supabase (jobs · contacts · outreach)
     │
     ▼
  I review + send · runs daily via cron
@@ -77,6 +80,19 @@ Because any client-side search *must* expose its key to the browser to function,
 
 ---
 
+## Finding the decision-maker
+
+For every strong-fit survivor, Prospector finds *who to email* — the founder/CTO — so the outreach lands in a person's inbox, not an ATS queue. It's built to be **robust before comprehensive**, because a confidently-wrong contact is worse than none:
+
+- **Domain-anchored** — resolves the company's real domain first; every candidate is verified against it (so a same-named company can't leak in).
+- **Grounded** — the LLM extracts a name/title/email *only from text actually fetched* (the job post, the YC page, the company's `/about` · `/team` · `/contact`). It cannot invent a name that isn't in the source.
+- **Confidence-flagged** — a real email found in the text is `verified`; a company role-inbox is `generic`; a pattern guess is `guessed`. It **never presents a guess as fact**, and never fabricates a specific person's email as if it were known.
+- **Graceful** — any blocked or missing page is skipped; it returns what it has, or falls back to the apply link.
+
+The result in the Discord card: the contact's name and title, a usable email (labeled by confidence), and the source it came from — so a human reviews and sends with the right level of trust.
+
+---
+
 ## Tech stack
 
 | Component | Choice |
@@ -98,10 +114,10 @@ The profile the LLM scores against is **self-updating**: it merges a static prof
 main.py            orchestration (source isolation, staged pipeline)
 sources/           one module per source, common BaseSource interface
 pipeline/          prefilter · deduper · scorer · drafter · profile · llm_util
-enrichment/        decision-maker finder (v1.5)
+enrichment/        decision-maker finder (domain-anchored, grounded)
 notify/            Discord embed formatting + per-channel routing
 db/                Supabase store + schema
-models/            Job · FitResult · Prospect
+models/            Job · FitResult · DecisionMaker · Prospect
 config/            env secrets + profile/filters YAML
 ```
 
@@ -125,9 +141,9 @@ python main.py                                    # or wire to cron for daily ru
 
 ## Status
 
-**Working:** 5 sources → filter → dedupe → LLM score → LLM draft → dual-channel Discord → Supabase persistence, plus self-updating GitHub profile enrichment.
+**Working:** 5 sources → filter → dedupe → LLM score → **decision-maker finder** → LLM draft → dual-channel Discord → Supabase persistence, plus self-updating GitHub profile enrichment.
 
-**Next:** decision-maker/email finder (domain-anchored + verified), one-click Gmail-compose delivery, VPS/cron deployment.
+**Next:** web-search + MX/SMTP contact verification (turn `guessed` → `verified`), one-click Gmail-compose delivery, VPS/cron deployment.
 
 ---
 
