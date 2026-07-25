@@ -78,6 +78,9 @@ def _github_projects_summary() -> str:
             f"{repo.get('description') or ''}\n{readme}"
         )
 
+    # Exact repo links (name → URL), so drafts can cite the specific repo.
+    links = "\n".join(f"- {r['name']}: {r['html_url']}" for r in repos[:8] if r.get("html_url"))
+
     try:
         resp = client.chat.completions.create(
             model=config.LLM_MODEL,
@@ -85,10 +88,11 @@ def _github_projects_summary() -> str:
                       {"role": "user", "content": "\n\n".join(chunks)[:12000]}],
             temperature=0, max_tokens=500,
         )
-        return _THINK.sub("", resp.choices[0].message.content or "").strip()
+        summary = _THINK.sub("", resp.choices[0].message.content or "").strip()
+        return f"{summary}\n\nREPO LINKS (cite the specific one when naming a project):\n{links}"
     except Exception:
         log.exception("github distill failed; using static profile only")
-        return ""
+        return f"REPO LINKS:\n{links}" if links else ""
 
 
 @functools.lru_cache(maxsize=1)

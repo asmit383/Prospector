@@ -13,6 +13,10 @@ Given the candidate profile and a job, write two drafts. Follow the candidate's
 `voice` guidance. Lead with a specific hook tied to THIS company/role. No "I hope
 this finds you well." Keep it tight and technical.
 
+Whenever you name a specific project (e.g. leankv, LLM-Doc), include ITS GitHub
+repo link inline from the profile's REPO LINKS — link the specific repo, not just
+the profile. Only use links present in the profile; never invent one.
+
 Respond ONLY with JSON:
 {"email": "<subject line + body>", "linkedin": "<1-3 sentence connection message>"}"""
 

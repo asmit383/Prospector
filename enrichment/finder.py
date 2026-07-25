@@ -111,8 +111,10 @@ def _gather_intel(job: Job, domain: str) -> str:
     parts = [job.description or ""]  # the post text (HN contacts live here)
     # The listing page first — YC company pages list the founders even when the
     # startup's own marketing site doesn't — then the company's own site.
-    urls = ([job.source_url] if job.source_url else []) + \
-           [f"https://{domain}/{p}" for p in _PAGES]
+    # Skip the listing page for HN: its post text is already in the description,
+    # and re-fetching HN item pages trips their rate limit (429).
+    listing = [job.source_url] if (job.source_url and job.source != "hn") else []
+    urls = listing + [f"https://{domain}/{p}" for p in _PAGES]
     seen = set()
     for url in urls:
         if not url or url in seen:
@@ -134,7 +136,7 @@ def _extract(domain: str, text: str) -> dict | None:
             messages=[{"role": "system", "content": _SYSTEM},
                       {"role": "user", "content": f"DOMAIN: {domain}\n\nTEXT:\n{text}"}],
             response_format={"type": "json_object"},
-            temperature=0, max_tokens=200,
+            temperature=0, max_tokens=400,
         )
         return extract_json(resp.choices[0].message.content)
     except Exception:
