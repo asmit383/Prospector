@@ -32,4 +32,5 @@ class Prospect:
     fit: FitResult
     email_draft: str
     linkedin_draft: str
+    email_subject: str = ""
     contact: DecisionMaker | None = None

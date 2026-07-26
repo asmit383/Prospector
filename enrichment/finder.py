@@ -58,7 +58,7 @@ def find_decision_maker(job: Job) -> DecisionMaker | None:
     if not domain:
         return None  # can't verify → caller falls back to the apply link
 
-    text = _gather_intel(job, domain)
+    text, emails = _gather_intel(job, domain)
     data = _extract(domain, text)
     if not data or not data.get("found"):
         return None
@@ -67,7 +67,7 @@ def find_decision_maker(job: Job) -> DecisionMaker | None:
     if not name:
         return None
 
-    email, conf = _resolve_email(name, data.get("email"), domain, text)
+    email, conf = _resolve_email(name, data.get("email"), domain, emails)
     return DecisionMaker(
         name=name,
         title=(data.get("title") or "").strip(),
@@ -107,8 +107,16 @@ def _resolve_domain(job: Job) -> str | None:
     return None
 
 
-def _gather_intel(job: Job, domain: str) -> str:
-    parts = [job.description or ""]  # the post text (HN contacts live here)
+def _gather_intel(job: Job, domain: str) -> tuple[str, set[str]]:
+    """Returns (text_for_llm, on_domain_emails).
+
+    The text is stripped + truncated for the LLM. The email set is harvested
+    from the FULL raw HTML of every page (before stripping/truncation) — a
+    contact address often lives only in a `mailto:` link or a page footer, both
+    of which the strip+truncate would otherwise destroy before we look."""
+    desc = job.description or ""
+    parts = [desc]                       # the post text (HN contacts live here)
+    emails = _emails_in(desc, domain)    # …and an "email me at" in the post
     # The listing page first — YC company pages list the founders even when the
     # startup's own marketing site doesn't — then the company's own site.
     # Skip the listing page for HN: its post text is already in the description,
@@ -123,10 +131,20 @@ def _gather_intel(job: Job, domain: str) -> str:
         try:
             r = httpx.get(url, headers=_HEADERS, timeout=8, follow_redirects=True)
             if r.status_code == 200:
+                emails |= _emails_in(r.text, domain)  # harvest from FULL raw html
                 parts.append(f"[{url}]\n{_strip_html(r.text)[:4000]}")
         except Exception:
             continue
-    return "\n\n".join(parts)[:20000]
+    return "\n\n".join(parts)[:20000], emails
+
+
+def _emails_in(raw: str, domain: str) -> set[str]:
+    """On-domain emails in raw HTML — catches `mailto:` hrefs and inline text
+    alike, because we scan BEFORE stripping tags. Unescape first so entity-
+    encoded addresses (e.g. `&#64;` for @) are seen too."""
+    s = html.unescape(raw or "")
+    hits = re.findall(r"[A-Za-z0-9._%+-]+@" + re.escape(domain), s, re.I)
+    return {e.lower() for e in hits}
 
 
 def _extract(domain: str, text: str) -> dict | None:
@@ -147,22 +165,50 @@ def _extract(domain: str, text: str) -> dict | None:
 _ROLE_INBOXES = ("founders", "founder", "hello", "team", "contact", "careers", "jobs")
 
 
-def _resolve_email(name: str, llm_email: str | None, domain: str, text: str):
-    # 1. a specific email on this domain, found in the text
-    if llm_email and llm_email.lower().strip().endswith("@" + domain):
-        return llm_email.lower().strip(), "verified"
-    # 2. any email on this domain present in the text — prefer a role inbox
-    on_domain = [e.lower() for e in re.findall(r"[A-Za-z0-9._%+-]+@" + re.escape(domain), text)]
-    if on_domain:
-        roles = [e for e in on_domain if e.split("@")[0] in _ROLE_INBOXES]
-        return (roles[0] if roles else on_domain[0]), "generic"
-    # 3. no email in the text → offer the likely patterns, all flagged "guessed".
+def _resolve_email(name: str, llm_email: str | None, domain: str, emails: set[str]):
+    found = set(emails)
+    llm = (llm_email or "").lower().strip()
+    if llm.endswith("@" + domain):
+        found.add(llm)
+
+    # 1. a personal address on this domain matching the founder's name — the
+    #    most direct, highest-reply-rate cold contact (faiz@ over connect@).
+    named = sorted((e for e in found if _name_match(e.split("@")[0], name)), key=len)
+    if named:
+        return named[0], "verified"
+    # 2. the address the post text explicitly pointed to (LLM-extracted).
+    if llm.endswith("@" + domain):
+        return llm, "verified"
+    # 3. a shared role inbox we actually saw on the page.
+    roles = [e for e in found if e.split("@")[0] in _ROLE_INBOXES]
+    if roles:
+        return roles[0], "generic"
+    # 4. any other on-domain address we harvested.
+    if found:
+        return sorted(found, key=len)[0], "generic"
+    # 5. nothing found → offer the likely patterns, all flagged "guessed".
     #    firstname@ is often the real, most-direct address (verify via Gmail's
     #    profile-photo hint); founders@/hello@ are the safe company inboxes.
     #    Never present these as verified — the flag + human review is the guard.
     first = re.sub(r"[^a-z]", "", name.split()[0].lower()) if name.split() else ""
     candidates = ([f"{first}@{domain}"] if first else []) + [f"founders@{domain}", f"hello@{domain}"]
     return " / ".join(candidates), "guessed"
+
+
+def _name_match(local: str, name: str) -> bool:
+    """Does an email's local-part belong to this person? Equality against the
+    common patterns (first, firstlast, first.last, flast, …) — NOT a substring
+    test, so `ana` can't match `manager@`."""
+    parts = [re.sub(r"[^a-z]", "", p.lower()) for p in name.split()]
+    parts = [p for p in parts if len(p) >= 2]
+    if not parts:
+        return False
+    first, last = parts[0], (parts[-1] if len(parts) > 1 else "")
+    stem = re.split(r"[._-]", local.lower().split("+")[0])[0]  # faiz.khan → faiz
+    cands = {first}
+    if last:
+        cands |= {first + last, first[0] + last, first + last[0], last}
+    return stem == first or local.lower().split("+")[0] in cands
 
 
 def _host(url: str | None) -> str | None:

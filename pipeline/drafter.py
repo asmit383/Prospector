@@ -18,9 +18,10 @@ repo link inline from the profile's REPO LINKS — link the specific repo, not j
 the profile. Only use links present in the profile; never invent one.
 
 Respond ONLY with JSON:
-{"email": "<subject line + body>", "linkedin": "<1-3 sentence connection message>"}"""
+{"subject": "<concise, specific subject line>", "email": "<email body only — NO \
+subject line inside it>", "linkedin": "<1-3 sentence connection message>"}"""
 
-def draft(job: Job, fit: FitResult, contact: DecisionMaker | None) -> tuple[str, str]:
+def draft(job: Job, fit: FitResult, contact: DecisionMaker | None) -> tuple[str, str, str]:
     # Address the email to the decision-maker by name when we found one.
     who = f"{contact.name} ({contact.title})" if contact and contact.title else \
           (contact.name if contact else "the team")
@@ -45,16 +46,17 @@ def draft(job: Job, fit: FitResult, contact: DecisionMaker | None) -> tuple[str,
         max_tokens=800,
     )
     data = extract_json(resp.choices[0].message.content)
-    return data.get("email", ""), data.get("linkedin", "")
+    return data.get("subject", ""), data.get("email", ""), data.get("linkedin", "")
 
 
 def run(enriched: list[tuple]) -> list[Prospect]:
     """enriched: list[(Job, FitResult, DecisionMaker|None)]."""
     prospects = []
     for job, fit, contact in enriched:
-        email_draft, linkedin_draft = draft(job, fit, contact)
+        subject, email_draft, linkedin_draft = draft(job, fit, contact)
         prospects.append(Prospect(
             job=job, fit=fit,
+            email_subject=subject,
             email_draft=email_draft, linkedin_draft=linkedin_draft,
             contact=contact,
         ))

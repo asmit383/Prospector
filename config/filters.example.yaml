@@ -21,6 +21,37 @@ include_keywords:
   - backend
   - python
 
+# Region lock: keep only globally-remote or India-eligible roles; drop roles
+# restricted to a region you can't work from. Allow signals win over block
+# signals. Matching is word-boundary + case-insensitive.
+region_filter: true
+region_allow:            # if present (title/location/description) → keep
+  - anywhere
+  - worldwide
+  - india
+  - apac
+  - asia
+region_block:            # explicit lock phrases (title + location + description)
+  - us only
+  - us based
+  - based in the united states
+  - authorized to work in the us
+  - eu only
+  - europe only
+  - uk only
+  - canada only
+  - north america only
+region_block_location:   # bare region names, checked ONLY in the location field
+  - united states
+  - usa
+  - us
+  - north america
+  - europe
+  - eu
+  - emea
+  - uk
+  - canada
+
 # Drop the job if the title contains any of these.
 exclude_title_keywords:
   - senior director

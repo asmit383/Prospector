@@ -1,3 +1,4 @@
+import re
 from datetime import datetime, timezone
 
 import config
@@ -19,6 +20,35 @@ def _text(job: Job) -> str:
     role title is the honest signal (real tech jobs put the stack in the title).
     (HN titles are the full 'Company | Role | stack' header, so they're rich.)"""
     return job.title.lower()
+
+
+_REGION_RE: dict[str, re.Pattern] = {}
+
+
+def _region_re(key: str) -> re.Pattern:
+    """Word-boundary regex over a config list, cached. Prevents substring
+    false-fires ('us only' inside 'bonus only', 'asia' inside 'Malaysia')."""
+    if key not in _REGION_RE:
+        toks = config.FILTERS.get(key) or []
+        pat = r"\b(?:" + "|".join(re.escape(t) for t in toks) + r")\b" if toks else r"(?!x)x"
+        _REGION_RE[key] = re.compile(pat, re.I)
+    return _REGION_RE[key]
+
+
+def _region_locked(job: Job) -> bool:
+    """True if the role is restricted to a region that excludes an India-based
+    applicant. Allow signals win over block signals (a job that's both
+    'US-based' and 'open worldwide' is kept)."""
+    if not config.FILTERS.get("region_filter"):
+        return False
+    loc = (job.location or "").lower()
+    hay = f"{job.title.lower()} {loc} {(job.description or '').lower()}"
+    if _region_re("region_allow").search(hay):
+        return False
+    if _region_re("region_block").search(hay):
+        return True
+    # Bare region names count only in the location field (too noisy in prose).
+    return bool(loc and _region_re("region_block_location").search(loc))
 
 
 def _too_old(job: Job) -> bool:
@@ -46,6 +76,11 @@ def passes(job: Job) -> bool:
         loc = job.location.lower()
         if loc and not any(k in loc for k in _REMOTE_HINTS):
             return False
+
+    # 1b. Region lock: drop roles restricted to a region you can't work from
+    #     (US-only, EU-only, …). Global-remote / India-eligible roles pass.
+    if _region_locked(job):
+        return False
 
     # 2. Title exclusions (too senior / wrong function).
     if any(bad in title for bad in f.get("exclude_title_keywords", [])):
