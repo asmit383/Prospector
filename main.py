@@ -45,8 +45,18 @@ def main():
     jobs = deduper.run(jobs)
     log.info("%d after dedupe", len(jobs))
 
-    scored = scorer.run(jobs)
-    log.info("%d after fit-score (strong/maybe)", len(scored))
+    scored_all = scorer.run(jobs)
+    # Record the "no"s NOW so the deduper skips them next run — a reject scores
+    # the same tomorrow, so it must never hit the LLM twice. Survivors stay
+    # unsaved until they're actually delivered (below), so a crash mid-run
+    # re-surfaces a strong lead instead of silently marking it seen and losing it.
+    scored = []
+    for job, fit in scored_all:
+        if fit.tier in ("strong", "maybe"):
+            scored.append((job, fit))
+        else:
+            store.save_job(job, fit.score, fit.tier, fit.reason)
+    log.info("%d scored, %d strong/maybe kept", len(scored_all), len(scored))
 
     enriched = finder.run(scored)
     found = sum(1 for _, _, dm in enriched if dm)

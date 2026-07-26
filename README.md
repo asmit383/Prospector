@@ -51,8 +51,8 @@ The interesting part isn't the pipeline — it's the judgment behind it.
 1. **API where it exists, reverse-engineer where it doesn't, stealth where it fights back.**
    The six sources deliberately span the spectrum: clean JSON APIs (RemoteOK, Remotive), an RSS feed (We Work Remotely), freeform text that needs LLM extraction (HN "Who's Hiring"), a **JS-app whose data lives behind a client-side search API** (YC), and — where a site actively blocks automated access (Wellfound, behind DataDome) — a **fingerprint-spoofing stealth browser**. Each source uses the *lightest tool that clears it*: an API call where one exists, a browser only where the site leaves no other way in.
 
-2. **The LLM is expensive; use it late.**
-   Every deterministic filter — remote, salary, lane keywords, freshness, dedupe — runs *before* any LLM call. The model only ever sees pre-qualified survivors. This isn't just cost: deterministic code is faster, testable, and reproducible, so the LLM is confined to the two things code genuinely can't do — **subjective fit-scoring** and **natural-language drafting**.
+2. **The LLM is expensive; use it late — and only once.**
+   Every deterministic filter — remote, region, salary, lane keywords, freshness, dedupe — runs *before* any LLM call. The model only ever sees pre-qualified survivors. And **every fit-score verdict is persisted (including the rejects)**, so the deduper skips a job on later runs and the LLM scores it *exactly once, ever* — a job that scored "no" today isn't re-scored tomorrow. This isn't just cost: deterministic code is faster, testable, and reproducible, so the LLM is confined to the two things code genuinely can't do — **subjective fit-scoring** and **natural-language drafting**.
 
 3. **Human-in-the-loop, always.**
    The tool finds, scores, and drafts. It never sends. A human reviews every message before it goes out — the step that catches an LLM-hallucinated name or a misquoted metric before it reaches a founder's inbox.

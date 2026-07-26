@@ -46,10 +46,10 @@ def score(job: Job) -> FitResult:
 
 
 def run(jobs: list[Job]) -> list[tuple[Job, FitResult]]:
-    """Score each job; keep only strong/maybe."""
-    kept = []
-    for job in jobs:
-        fit = score(job)
-        if fit.tier in ("strong", "maybe"):
-            kept.append((job, fit))
-    return kept
+    """Score each job and return EVERY verdict, including "no".
+
+    The caller persists all of them: a job scored "no" today scores "no"
+    tomorrow, so recording the verdict means the deduper skips it next run and
+    the LLM never re-scores it. Returning only survivors here would leave the
+    rejects unrecorded — and re-scored on every daily run until they age out."""
+    return [(job, score(job)) for job in jobs]
