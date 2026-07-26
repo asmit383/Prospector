@@ -12,13 +12,13 @@ It's two things at once: a tool I actually use to run my own job hunt, and a sma
  CONFIG (profile · filters · webhooks · LLM key)
     │
     ▼
- [1] SOURCES ── APIs, RSS, and a reverse-engineered search backend
-    │           RemoteOK · Remotive · We Work Remotely · HN "Who's Hiring" · YC
+ [1] SOURCES ── APIs, RSS, a reverse-engineered search backend, a stealth browser
+    │           RemoteOK · Remotive · We Work Remotely · HN "Who's Hiring" · YC · Wellfound
     ▼
  [2] NORMALIZE ── every source → one Job schema
     │
     ▼
- [3] PREFILTER ── remote? in-lane? fresh? title exclusions?     (cheap, no LLM)
+ [3] PREFILTER ── remote? region-eligible? in-lane? fresh?      (cheap, no LLM)
     │
     ▼
  [4] DEDUPE ── source-agnostic hash, Postgres-backed
@@ -33,7 +33,7 @@ It's two things at once: a tool I actually use to run my own job hunt, and a sma
  [7] LLM DRAFT ── personalized email + LinkedIn, addressed to the contact
     │
     ▼
- [8] NOTIFY ── Discord embeds (job leads + startup leads, separate channels)
+ [8] NOTIFY ── Discord embeds + one-click Gmail-compose (separate channels)
     │
     ▼
  [9] PERSIST ── Supabase (jobs · contacts · outreach)
@@ -48,8 +48,8 @@ It's two things at once: a tool I actually use to run my own job hunt, and a sma
 
 The interesting part isn't the pipeline — it's the judgment behind it.
 
-1. **API where it exists, reverse-engineer where it doesn't.**
-   The five sources deliberately span the spectrum: clean JSON APIs (RemoteOK, Remotive), an RSS feed (We Work Remotely), freeform text that needs LLM extraction (HN "Who's Hiring"), and a **JS-app whose data lives behind a client-side search API** (YC). Each source uses the *lightest tool that clears it* — no headless browser where an API call will do.
+1. **API where it exists, reverse-engineer where it doesn't, stealth where it fights back.**
+   The six sources deliberately span the spectrum: clean JSON APIs (RemoteOK, Remotive), an RSS feed (We Work Remotely), freeform text that needs LLM extraction (HN "Who's Hiring"), a **JS-app whose data lives behind a client-side search API** (YC), and — where a site actively blocks automated access (Wellfound, behind DataDome) — a **fingerprint-spoofing stealth browser**. Each source uses the *lightest tool that clears it*: an API call where one exists, a browser only where the site leaves no other way in.
 
 2. **The LLM is expensive; use it late.**
    Every deterministic filter — remote, salary, lane keywords, freshness, dedupe — runs *before* any LLM call. The model only ever sees pre-qualified survivors. This isn't just cost: deterministic code is faster, testable, and reproducible, so the LLM is confined to the two things code genuinely can't do — **subjective fit-scoring** and **natural-language drafting**.
@@ -71,12 +71,21 @@ The interesting part isn't the pipeline — it's the judgment behind it.
 | **We Work Remotely** | RSS (per category) | Escaped-HTML descriptions, `Company: Role` titles |
 | **HN "Who's Hiring"** | HN Algolia API | Freeform comment text → the normalizer is really an LLM/regex extraction |
 | **YC** | **Reverse-engineered client-side search** | See below |
+| **Wellfound** | **Stealth browser** (Camoufox) | Behind DataDome + Cloudflare; TLS impersonation alone gets `403` — see below |
 
 ### The YC source
 
 YC's company directory is a single-page app — the HTML ships no data; it's loaded client-side from a hosted **search backend**. Rather than driving a headless browser to render and scrape the DOM, Prospector recognizes the pattern and goes straight to the source: it extracts the search credentials the page hands the browser at runtime, then **queries the same JSON API the browser uses** — directly, with no browser at all.
 
 Because any client-side search *must* expose its key to the browser to function, that key is always recoverable — and hitting the API directly is faster, cleaner, and far more robust than DOM scraping. The credential is re-extracted on every run, so it survives key rotation. The result: a filtered stream of small, hiring, in-lane startups where the founder is reachable — exactly the cold-outreach sweet spot.
+
+### The Wellfound source
+
+Wellfound sits behind **DataDome + Cloudflare** bot protection. Plain HTTP — and even `curl_cffi` TLS/JA3 impersonation of a real Chrome — gets a `403`: DataDome requires its in-browser JavaScript **fingerprint challenge** to be solved before it will issue a session cookie. This is the one source where no API call, at any TLS layer, gets you in.
+
+So it uses **Camoufox**, a Firefox build that spoofs the browser fingerprint at the **C++ engine level** — the browser reports a consistent, human-looking fingerprint that DataDome's JS inspection can't distinguish from a real one, so the challenge passes and the page loads. Job data is then read from the page's embedded `__NEXT_DATA__` (a normalized Apollo cache, resolved through its `__ref` pointers) — not by scraping the rendered DOM.
+
+It's the deliberate far end of principle #1: an API call clears most sources, but where a site genuinely fights back, the tool escalates to match. And it stays **source-isolated** — if DataDome ever flags a run, that source just skips and the other five continue.
 
 ---
 
@@ -86,6 +95,7 @@ For every strong-fit survivor, Prospector finds *who to email* — the founder/C
 
 - **Domain-anchored** — resolves the company's real domain first; every candidate is verified against it (so a same-named company can't leak in).
 - **Grounded** — the LLM extracts a name/title/email *only from text actually fetched* (the job post, the YC page, the company's `/about` · `/team` · `/contact`). It cannot invent a name that isn't in the source.
+- **Thorough on the email** — on-domain addresses are harvested from the *full raw HTML* of each page, including `mailto:` links a text-scrape would miss; when the founder's name is known it prefers their **personal address** (`faiz@`) over a shared inbox (`connect@`).
 - **Confidence-flagged** — a real email found in the text is `verified`; a company role-inbox is `generic`; a pattern guess is `guessed`. It **never presents a guess as fact**, and never fabricates a specific person's email as if it were known.
 - **Graceful** — any blocked or missing page is skipped; it returns what it has, or falls back to the apply link.
 
@@ -99,6 +109,7 @@ The result in the Discord card: the contact's name and title, a usable email (la
 |---|---|
 | Language | Python 3.12 |
 | HTTP | `httpx` |
+| Stealth browser | Camoufox (Firefox, engine-level fingerprint spoofing) |
 | Database | Supabase (Postgres) |
 | LLM | OpenAI-compatible API (provider-agnostic) |
 | Notifications | Discord webhooks |
@@ -141,9 +152,9 @@ python main.py                                    # or wire to cron for daily ru
 
 ## Status
 
-**Working:** 5 sources → filter → dedupe → LLM score → **decision-maker finder** → LLM draft → dual-channel Discord → Supabase persistence, plus self-updating GitHub profile enrichment.
+**Working:** 6 sources (incl. Wellfound, past DataDome via a stealth browser) → filter (lane · freshness · salary · **region-eligibility**) → dedupe → LLM score → **decision-maker finder** → LLM draft → dual-channel Discord with **one-click Gmail-compose** → Supabase persistence, plus self-updating GitHub profile enrichment.
 
-**Next:** web-search + MX/SMTP contact verification (turn `guessed` → `verified`), one-click Gmail-compose delivery, VPS/cron deployment.
+**Next:** MX/SMTP contact verification (turn `guessed` → `verified`), an outreach tracker (sent · replied · ignored), and VPS/cron deployment.
 
 ---
 
