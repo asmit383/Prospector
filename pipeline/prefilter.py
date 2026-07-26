@@ -5,7 +5,7 @@ from models.job import Job
 
 # Boards that only list remote jobs — their location fields are often junk
 # ("Jobs Cabin", "Anywhere in the World"), so skip the remote check for them.
-_REMOTE_SOURCES = {"remoteok", "remotive", "wwr"}
+_REMOTE_SOURCES = {"remoteok", "remotive", "wwr", "wellfound"}
 _REMOTE_HINTS = ("remote", "anywhere", "worldwide", "global", "distributed")
 
 # Sources already filtered to the candidate's lanes by their own taxonomy

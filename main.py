@@ -9,6 +9,7 @@ from sources.remoteok import RemoteOK
 from sources.remotive import Remotive
 from sources.wwr import WeWorkRemotely
 from sources.yc import YCombinator
+from sources.wellfound import Wellfound
 from pipeline import prefilter, deduper, scorer, drafter
 from enrichment import finder
 from notify import discord
@@ -17,7 +18,7 @@ from db import store
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
 log = logging.getLogger("prospector")
 
-SOURCES = [RemoteOK(), HackerNews(), Remotive(), WeWorkRemotely(), YCombinator()]
+SOURCES = [RemoteOK(), HackerNews(), Remotive(), WeWorkRemotely(), YCombinator(), Wellfound()]
 
 
 def gather_jobs():
