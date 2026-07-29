@@ -20,6 +20,27 @@ SEARCH_URLS = [
 ]
 _NEXT_RE = re.compile(r'<script id="__NEXT_DATA__"[^>]*>(.*?)</script>', re.DOTALL)
 
+# The /remote search still returns onsite + region-locked-remote jobs. For an
+# India-based candidate, keep ONLY worldwide or India-eligible remote (no false
+# positives). The authoritative eligibility field is acceptedRemoteLocationNames:
+#   - remoteConfig.kind == "ONSITE" (or remote falsy)      → onsite         → drop
+#   - acceptedRemoteLocationNames names a non-India region  → US-only remote → drop
+#   - acceptedRemoteLocationNames empty                     → unrestricted   → keep
+#   - acceptedRemoteLocationNames includes India/anywhere   → eligible       → keep
+_REMOTE_OK_SIGNALS = ("india", "anywhere", "worldwide", "everywhere", "global")
+
+
+def _remote_ok(jl: dict) -> tuple[bool, str]:
+    """(keep, location) — drop onsite and region-locked-remote roles."""
+    if (jl.get("remoteConfig") or {}).get("kind") == "ONSITE" or not jl.get("remote"):
+        return False, ""  # onsite
+    accepted = [s.lower() for s in (jl.get("acceptedRemoteLocationNames") or []) if s]
+    if accepted:
+        if any(sig in a for a in accepted for sig in _REMOTE_OK_SIGNALS):
+            return True, "remote (" + ", ".join(s.title() for s in accepted) + ")"
+        return False, ""  # remote but locked to a non-India region (US, EU, …)
+    return True, "remote worldwide"  # no accepted-region restriction → worldwide
+
 
 class Wellfound(BaseSource):
     name = "wellfound"
@@ -74,13 +95,16 @@ class Wellfound(BaseSource):
                 title = jl.get("title") or jl.get("primaryRoleTitle")
                 if not title:
                     continue
+                keep, location = _remote_ok(jl)
+                if not keep:
+                    continue  # onsite or region-locked remote → not India-eligible
                 comp = jl.get("compensation") or ""
                 out.append(Job(
                     title=title,
                     company=name,
                     company_url=f"https://wellfound.com/company/{slug}",
                     description=f"{concept}\n\n{jl.get('description') or ''}\n\ncompensation: {comp}",
-                    location="remote" if jl.get("remote") else ", ".join(jl.get("locationNames") or []) or "remote",
+                    location=location,
                     tags=[],
                     source=self.name,
                     source_url=f"https://wellfound.com/jobs/{jl.get('id')}-{jl.get('slug', '')}",

@@ -34,6 +34,7 @@ _JOB_BOARDS = {
     "remoteok.com", "remoteok.io", "news.ycombinator.com", "ycombinator.com",
     "weworkremotely.com", "remotive.com", "ashbyhq.com", "greenhouse.io",
     "boards.greenhouse.io", "lever.co", "jobs.lever.co", "workatastartup.com",
+    "wellfound.com", "angel.co",  # behind DataDome — httpx 403s; never scrape as a domain
     "linkedin.com", "twitter.com", "x.com", "github.com",
 }
 
@@ -121,7 +122,9 @@ def _gather_intel(job: Job, domain: str) -> tuple[str, set[str]]:
     # startup's own marketing site doesn't — then the company's own site.
     # Skip the listing page for HN: its post text is already in the description,
     # and re-fetching HN item pages trips their rate limit (429).
-    listing = [job.source_url] if (job.source_url and job.source != "hn") else []
+    # Skip the listing re-fetch for HN (429 rate-limit) and Wellfound (DataDome
+    # 403s httpx) — the post text is already in the description either way.
+    listing = [job.source_url] if (job.source_url and job.source not in ("hn", "wellfound")) else []
     urls = listing + [f"https://{domain}/{p}" for p in _PAGES]
     seen = set()
     for url in urls:
